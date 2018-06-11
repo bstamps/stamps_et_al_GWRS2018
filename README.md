@@ -1,1 +1,3 @@
-# stamps_et_al_GWRS2018
+# Characterization of the Microbiome of a State-of-the-Art Water Reuse System to Enhance Treatment Performance
+
+This repository contains the R Markdown notebook needed to recreate 16S/18S rRNA gene sequencing figures and analyses from *Stamps et. al* 2018(In Prep). The repository also has the files needed for the notebook. Raw data required for the QIIME/UPARSE steps should be downloaded from NCBI. Additionally, BIOM and tree files are present should you wish to start the analysis from figure generation, rather than from raw data.
