@@ -1,0 +1,446 @@
+---
+title: "Characterization of the Microbiome of a State-of-the-Art Water Reuse System to Enhance Treatment Performance"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+
+
+Before figure generation and analyses in R, I process my data in QIIME and deblur- the below is exicsed from a BASH script used to run the initial processing outside of R. 
+
+Note that for all QIIME/UPARSE related scripts I'm operating in the BASH environment. Depending on your computer you may have problems running more memory intensive steps, e.g. taxonomy assignment and sequence alignment. Prior to R for visualization and analysis, I used an M4.4xlarge instance on Amazon EC2. 
+
+You will need the initial mapping files for QC, as well as the analysis mapping (Both included in supplementary data on the github repo) file to recreate this analysis.
+
+Software used: 
+- QIIME 1.9.1
+- USEARCH v. 10.0.240
+- PEAR
+- All dependencies for the above software
+
+I run QIIME and Deblur within separate virtual environments, so you'll see me activate and deactivate them within this script. The first several blocks of code were carried out using an t2.medium instance type. For storage, I recommend 80-100 GB.
+
+```{bash}
+source activate qiime1
+```
+
+
+By the estimated insert sizes for 16S and 18S, we're going to have to process our Bacterial/Archaeal and Eukaryotic sequences separately- 18S reads will not join (≈600-700 bp, so no overlap). First, we'll join reads, and then use the unpaired reads into a separate USEARCH pipeline. 
+
+```{bash}
+pear -f seq/Run2/BS-S1_S1_L001_R1_001.fastq.gz -r seq/Run2/BS-S1_S1_L001_R2_001.fastq.gz -o seq/Run2/seqs -p 0.001 -v 50 -m 450 -n 250 -y 500m -j 16
+
+pear -f seq/Run1/Parada_Run1_Early2017_R1.fastq -r seq/Run1/Parada_Run1_Early2017_R2.fastq -o seq/Run1/seqs -p 0.001 -v 50 -m 450 -n 250 -y 500m -j 16
+```
+
+After assembly, we're going to bifurcate into two workflows- the joined (Bacterial/Archaeal) and unjoined (Mostly Eukaryotic) sequences. Unjoined will use the unpaired, raw sequence data. I'll need to process both the R1 and R2 files to capture all of the sequence reads with a valid barcode and forward primer sequence because of my design.
+
+```{bash}
+extract_barcodes.py -l 12 -a -m JulyMap.txt -f seq/Run2/seqs.assembled.fastq -o seq/Run2/PreppedJoined/
+extract_barcodes.py -l 12 -f seq/Run2/BS-S1_S1_L001_R1_001.fastq -o seq/Run2/PreppedF/
+extract_barcodes.py -l 12 -f seq/Run2/BS-S1_S1_L001_R2_001.fastq -o seq/Run2/PreppedR/
+
+extract_barcodes.py -l 12 -a -m OctoberMap.txt -f seq/Run1/seqs.assembled.fastq -o seq/Run1/PreppedJoined/
+extract_barcodes.py -l 12 -f seq/Run1/Parada_Run1_Early2017_R1.fastq -o seq/Run1/PreppedF/
+extract_barcodes.py -l 12 -f seq/Run1/Parada_Run1_Early2017_R2.fastq -o seq/Run1/PreppedR/
+
+```
+
+
+Onto demultiplexing. No quality filtering was performed at this point, since the USEARCH pipeline will take the FASTQ file and filter later on.
+
+```{bash}
+split_libraries_fastq.py --barcode_type 12 -i seq/Run2/PreppedJoined/reads.fastq -b seq/Run2/PreppedJoined/barcodes.fastq -m JulyMap.txt --phred_quality_threshold 0 --store_demultiplexed_fastq -o seq/Run2/SlOutJoin/
+
+split_libraries_fastq.py --barcode_type 12 -i seq/Run2/PreppedF/reads.fastq -b seq/Run2/PreppedF/barcodes.fastq -m JulyMap.txt --phred_quality_threshold 0 --store_demultiplexed_fastq -o seq/Run2/SlOut_F/
+
+split_libraries_fastq.py --barcode_type 12 -i seq/Run2/PreppedR/reads.fastq -b seq/Run2/PreppedR/barcodes.fastq -m JulyMap.txt --phred_quality_threshold 0 --store_demultiplexed_fastq -o seq/Run2/SlOut_R/
+
+mkdir seq/Run2/SlOutUn/
+cat seq/Run2/SlOut_F/seqs.fna seq/Run2/SlOut_R/seqs.fna > seq/Run2/SlOutUn/seqs.fna
+cat seq/Run2/SlOut_F/seqs.fastq seq/Run2/SlOut_R/seqs.fastq > seq/Run2/SlOutUn/seqs.fastq
+
+split_libraries_fastq.py --barcode_type 12 -i seq/Run1/PreppedJoined/reads.fastq -b seq/Run1/PreppedJoined/barcodes.fastq -m OctoberMap.txt --phred_quality_threshold 0 --store_demultiplexed_fastq -o seq/Run1/SlOutJoin/
+
+split_libraries_fastq.py --barcode_type 12 -i seq/Run1/PreppedF/reads.fastq -b seq/Run1/PreppedF/barcodes.fastq -m OctoberMap.txt --phred_quality_threshold 0 --store_demultiplexed_fastq -o seq/Run1/SlOut_F/
+
+split_libraries_fastq.py --barcode_type 12 -i seq/Run1/PreppedR/reads.fastq -b seq/Run1/PreppedR/barcodes.fastq -m OctoberMap.txt --phred_quality_threshold 0 --store_demultiplexed_fastq -o seq/Run1/SlOut_R/
+
+mkdir seq/Run1/SlOutUn/
+cat seq/Run1/SlOut_F/seqs.fna seq/Run1/SlOut_R/seqs.fna > seq/Run1/SlOutUn/seqs.fna
+cat seq/Run1/SlOut_F/seqs.fastq seq/Run1/SlOut_R/seqs.fastq > seq/Run1/SlOutUn/seqs.fastq
+
+mkdir seq/SlOutJoin/
+cat seq/Run2/SlOutJoin/seqs.fna seq/Run1/SlOutJoin/seqs.fna > seq/SlOutJoin/seqs.fna
+cat seq/Run2/SlOutJoin/seqs.fastq seq/Run1/SlOutJoin/seqs.fastq > seq/SlOutJoin/seqs.fastq
+
+mkdir seq/SlOutUn/
+cat seq/Run2/SlOutUn/seqs.fna seq/Run1/SlOutUn/seqs.fna > seq/SlOutUn/seqs.fna
+cat seq/Run2/SlOutUn/seqs.fastq seq/Run1/SlOutUn/seqs.fastq > seq/SlOutUn/seqs.fastq
+```
+
+Now, onto USEARCH
+```{bash}
+mkdir UPARSE
+mkdir UPARSE/Join/
+usearch -fastx_truncate seq/SlOutJoin/seqs.fastq -trunclen 400 -fastqout seq/SlOutJoin/seqs.trunc.fastq
+usearch -fastx_truncate seq/SlOutJoin/seqs.fna -trunclen 400 -fastaout seq/SlOutJoin/seqs.trunc.fna
+usearch -fastq_filter seq/SlOutJoin/seqs.trunc.fastq -fastaout UPARSE/Join/seqs.filtered.fasta -fastq_maxee 1
+usearch -fastx_uniques UPARSE/Join/seqs.filtered.fasta -fastaout UPARSE/Join/uniques.fa -sizeout -relabel Uniq
+usearch -unoise3 UPARSE/Join/uniques.fa -zotus UPARSE/Join/zotus.fa
+usearch -usearch_global seq/SlOutJoin/seqs.fna -db UPARSE/Join/zotus.fa -strand plus -id 0.99 -uc UPARSE/Join/zotu.map.uc
+python /usr/bin/uc2otutab.py UPARSE/Join/zotu.map.uc > UPARSE/Join/zotu-table.txt
+biom convert --table-type="OTU table" -i UPARSE/Join/zotu-table.txt -o UPARSE/Join/zotu.biom --to-json
+assign_taxonomy.py -m mothur -t /vol_c/silva.nr_v132.tax -r /vol_c/silva.nr_v132.align -o UPARSE/Join/mothur_taxonomy/ -i UPARSE/Join/zotus.fa
+biom add-metadata --sc-separated taxonomy --observation-header OTUID,taxonomy --observation-metadata-fp UPARSE/Join/mothur_taxonomy/zotus_tax_assignments.txt -i UPARSE/Join/zotu.biom -o UPARSE/Join/zotu_w_tax.biom 
+biom add-metadata -i UPARSE/Join/zotu_w_tax.biom -o UPARSE/Join/zotu_w_md.biom --sample-metadata-fp map.txt
+
+
+mkdir UPARSE/Un/
+usearch -fastq_filter seq/SlOutUn/seqs.fastq -fastaout UPARSE/Un/seqs.filtered.fasta -fastq_maxee 1
+usearch -fastx_uniques UPARSE/Un/seqs.filtered.fasta -fastaout UPARSE/Un/uniques.fa -sizeout -relabel Uniq
+usearch -unoise3 UPARSE/Un/uniques.fa -zotus UPARSE/Un/zotus.fa
+usearch -usearch_global seq/SlOutUn/seqs.fna -db UPARSE/Un/zotus.fa -strand plus -id 0.99 -uc UPARSE/Un/zotu.map.uc
+python /usr/bin/uc2otutab.py UPARSE/Un/zotu.map.uc > UPARSE/Un/zotu-table.txt
+biom convert --table-type="OTU table" -i UPARSE/Un/zotu-table.txt -o UPARSE/Un/zotu.biom --to-json
+assign_taxonomy.py -m mothur -t /vol_c/silva.nr_v132.tax -r /vol_c/silva.nr_v132.align -o UPARSE/Un/mothur_taxonomy/ -i UPARSE/Un/zotus.fa
+biom add-metadata --sc-separated taxonomy --observation-header OTUID,taxonomy --observation-metadata-fp UPARSE/Un/mothur_taxonomy/zotus_tax_assignments.txt -i UPARSE/Un/zotu.biom -o UPARSE/Un/zotu_w_tax.biom 
+biom add-metadata -i UPARSE/Un/zotu_w_tax.biom -o UPARSE/Un/zotu_w_md.biom --sample-metadata-fp map.txt
+
+```
+
+
+The next few steps are for filtering of contaminant sequences. I limited the control OTU table to samples with at least 1000 sequences to ensure that I could get a representative “contaminated” core microbiome. All extraction blanks and filtration blanks were identified within the "Sample" metadata category as "Control" within my mapping file.
+
+Operational taxonomic units found to be in 75 percent of my controls will be removed. Also, because I have triplicate samples, I'll assume any OTU not found in at least 3 samples is erroneous. 
+
+```{bash}
+filter_samples_from_otu_table.py -m map.txt -s 'Control:Y' -n 1000 -o UPARSE/Join/Control.biom -i UPARSE/Join/zotu_w_md.biom
+compute_core_microbiome.py --min_fraction_for_core 0.25 --max_fraction_for_core 0.75 -i UPARSE/Join/Control.biom -o UPARSE/Join/ControlCore/
+
+filter_otus_from_otu_table.py -e UPARSE/Join/ControlCore/core_otus_75.txt -s 3 -n 1 -i UPARSE/Join/zotu_w_md.biom  -o UPARSE/Join/PostControlFilter.biom
+filter_taxa_from_otu_table.py -n Eukaryota -i UPARSE/Join/PostControlFilter.biom -o UPARSE/Join/AnalysisBacArc.biom
+filter_samples_from_otu_table.py -n 100 -i UPARSE/Join/AnalysisBacArc.biom -o UPARSE/Join/AnalysisBacArc.clean.biom 
+
+
+filter_samples_from_otu_table.py -m map.txt -s 'Control:Y' -n 1000 -o UPARSE/Un/Control.biom -i UPARSE/Un/zotu_w_md.biom
+compute_core_microbiome.py --min_fraction_for_core 0.25 --max_fraction_for_core 0.75 -i UPARSE/Un/Control.biom -o UPARSE/Un/ControlCore/
+
+filter_otus_from_otu_table.py -e UPARSE/Un/ControlCore/core_otus_75.txt -s 3 -n 1 -i UPARSE/Un/zotu_w_md.biom  -o UPARSE/Un/PostControlFilter.biom
+filter_taxa_from_otu_table.py -p Eukaryota -i UPARSE/Un/PostControlFilter.biom -o UPARSE/Un/Analysis_Euk.biom
+filter_samples_from_otu_table.py -n 100 -i UPARSE/Un/Analysis_Euk.biom -o UPARSE/Un/Analysis_Euk.clean.biom 
+
+#Also, one BIOM file for a combined analysis, just to see the Eukarya/Bacteria ratio
+
+filter_samples_from_otu_table.py -n 100 -i UPARSE/Un/PostControlFilter.biom -o UPARSE/Un/Analysis_combined.biom
+```
+
+Last step before moving into R. I'm going to extract sOTUs from the initial repset FASTA files to only include those that passed contamination screening. After this, I'll align to the SILVA database, and then generate phylogenetic trees, useful for the Unifrac distance matrix.
+
+```{bash}
+filter_fasta.py -b UPARSE/Join/AnalysisBacArc.clean.biom -f UPARSE/Join/zotus.fa -o UPARSE/Join/BacArc.seqs.fna
+filter_fasta.py -b UPARSE/Un/Analysis_Euk.clean.biom -f UPARSE/Un/zotus.fa -o UPARSE/Un/Euk.seqs.fna
+
+#Combined
+filter_fasta.py -b UPARSE/Un/Analysis_combined.biom -f UPARSE/Un/zotus.fa -o UPARSE/Un/All.seqs.fna
+```
+
+
+Back to the M4.4xlarge instance type for sequence alignment. 
+```{bash}
+align_seqs.py -i UPARSE/Join/BacArc.seqs.fna -t /vol_c/SILVA_132_QIIME_release/rep_set_aligned/99/99_alignment.fna -o UPARSE/Join/Aligned/
+filter_alignment.py -i UPARSE/Join/Aligned/BacArc.seqs_aligned.fasta -o UPARSE/Join/Aligned/ -e 0.001
+make_phylogeny.py -i UPARSE/Join/Aligned/BacArc.seqs_aligned_pfiltered.fasta -o UPARSE/Join/BacArc.tre
+
+align_seqs.py -i UPARSE/Un/Euk.seqs.fna -t /vol_c/SILVA_132_QIIME_release/rep_set_aligned/99/99_alignment.fna -o UPARSE/Un/Aligned/
+filter_alignment.py -i UPARSE/Un/Aligned/Euk.seqs_aligned.fasta -o UPARSE/Un/Aligned/ -e 0.001
+make_phylogeny.py -i UPARSE/Un/Aligned/Euk.seqs_aligned_pfiltered.fasta -o UPARSE/Un/Euk.tre
+
+#Combined
+align_seqs.py -i UPARSE/Un/All.seqs.fna -t /vol_c/SILVA_132_QIIME_release/rep_set_aligned/99/99_alignment.fna -o UPARSE/Un/AllAligned/
+filter_alignment.py -i UPARSE/Un/AllAligned/All.seqs_aligned.fasta -o UPARSE/Un/AllAligned/ -e 0.001
+make_phylogeny.py -i UPARSE/Un/AllAligned/All.seqs_aligned_pfiltered.fasta -o UPARSE/Un/All.tre
+
+```
+
+
+Onto R. This can be run on (almost) any desktop/laptop without issue. In my case, I downloaded the above output files (.biom, .tre. and .fa) from my workstation onto my laptop to run the below. 
+
+Load Needed Libraries
+```{r, message=FALSE, warning=FALSE}
+library(phyloseq)
+library(ampvis)
+library(cowplot)
+```
+
+Import BIOM files and convert to a phyloseq object. Also, I'll need to rename the columns to match what Phyloseq/Ampvis expect and make my life a little simpler. This will be a large section as I import each file. 
+```{r, warning=FALSE}
+Overall.BA <- import_biom("AnalysisBacArc.clean.biom", "BacArc.tre", "BacArc.seqs.fna", parseFunction=parse_taxonomy_default)
+
+Overall.E <- import_biom("Analysis_Euk.clean.biom", "Euk.tre", "Euk.seqs.fna", parseFunction=parse_taxonomy_default)
+
+Overall.All <- import_biom("Analysis_combined.biom", "All.tre", "All.seqs.fna", parseFunction=parse_taxonomy_default)
+```
+
+```{r, warning=FALSE}
+colnames(tax_table(Overall.BA)) = c("Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species")
+colnames(tax_table(Overall.E)) = c("Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species")
+colnames(tax_table(Overall.All)) = c("Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species")
+```
+
+Now I'm going to subset each table to make individual heatmaps for SE and SW that I can place side by side in the manuscript. 
+```{r}
+Overall.BA.N <- transform_sample_counts(Overall.BA, function(x) x / sum(x) * 100)
+Overall.E.N <- transform_sample_counts(Overall.E, function(x) x / sum(x) * 100)
+
+Experimental.BA <- subset_samples(Overall.BA, Site %in% c("Q1", "MFF", "MFE" , "ROF", "ROP", "UVF", "UVP", "FPW", "RO", "MF"))
+Experimental.E <- subset_samples(Overall.E, Site %in% c("Q1", "MFF", "MFE" , "ROF", "ROP", "UVF", "UVP", "FPW", "RO", "MF"))
+Experimental.BA.N <- transform_sample_counts(Experimental.BA, function(x) x / sum(x) * 100)
+Experimental.E.N <- transform_sample_counts(Experimental.E, function(x) x / sum(x) * 100)
+
+Water.BA <- subset_samples(Experimental.BA, Site %in% c("Q1", "MFF", "MFE" , "ROF", "ROP", "UVF", "UVP", "FPW"))
+Water.BA <- subset_samples(Water.BA, SampleType %in% c("Water"))
+Water.E <- subset_samples(Experimental.E, Site %in% c("Q1", "MFF", "MFE" , "ROF", "ROP", "UVF", "UVP", "FPW"))
+Water.E <- subset_samples(Water.E, SampleType %in% c("Water"))
+
+Water.BA.N <- transform_sample_counts(Water.BA, function(x) x / sum(x) * 100)
+Water.E.N <- transform_sample_counts(Water.E, function(x) x / sum(x) * 100)
+
+Water.DNA.BA <- subset_samples(Water.BA, DNAorRNA %in% c("DNA"))
+Water.DNA.E <- subset_samples(Water.E, DNAorRNA %in% c("DNA"))
+
+Water.BA.DNA.N <- transform_sample_counts(Water.DNA.BA, function(x) x / sum(x) * 100)
+Water.E.DNA.N <- transform_sample_counts(Water.DNA.E, function(x) x / sum(x) * 100)
+
+Biofilm.BA <- subset_samples(Overall.BA, Site %in% c("RO", "MF"))
+Biofilm.BA.N <- transform_sample_counts(Biofilm.BA, function(x) x / sum(x) * 100)
+
+Biofilm.E <- subset_samples(Overall.E, Site %in% c("RO", "MF"))
+Biofilm.E.N <- transform_sample_counts(Biofilm.E, function(x) x / sum(x) * 100)
+```
+
+
+Now, let's address our first question- are the locations different? 
+
+For the next section, we want to confirm that there are visible differences between locations by ordination, and then test the hypothesis that there is a difference in community structure between locations. To do this, we're going to rarefy our phyloseq objects before proceeding. 
+
+```{r}
+Water.BA.Rare <- rarefy_even_depth(Water.BA, sample.size = 5000, rngseed = 712)
+Water.E.Rare <- rarefy_even_depth(Water.E, sample.size = 1000, rngseed = 712)
+
+Experimental.BA.Rare <- rarefy_even_depth(Experimental.BA, sample.size = 5000, rngseed = 712)
+Experimental.E.Rare <- rarefy_even_depth(Experimental.E, sample.size = 1000, rngseed = 712)
+
+Water.DNA.BA.Rare <- rarefy_even_depth(Water.DNA.BA, sample.size = 1000, rngseed = 712)
+```
+
+```{r}
+Water.DNA.E.Rare <- rarefy_even_depth(Water.DNA.E, sample.size = 1000, rngseed = 712)
+```
+
+Next, I'm going to define a color varible for the plots.
+
+```{r}
+cols <- c("Q1" = "#000000", "MFF" = "#404040", "MFE" = "#666666", "ROF" = "#8c8c8c", "ROP" = "#a6a6a6", "UVF" = "#bfbfbf", "UVP" = "#d9d9d9", "FPW" = "orange", "RO" = "blue", "MF" = "red")
+```
+
+
+```{r}
+E.Ord <- ordinate(Water.DNA.E.Rare, method = "PCoA", distance = "unifrac")
+E.Ordu<- plot_ordination(Water.DNA.E.Rare, E.Ord, color="Site", shape="PrePostRO")
+E.Ordu + scale_colour_manual(values = cols) + scale_fill_manual(values = cols) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black"))
+```
+
+
+```{r}
+BA.Ord <- ordinate(Water.DNA.BA.Rare, method = "PCoA", distance = "unifrac")
+BA.Ordu<- plot_ordination(Water.DNA.BA.Rare, BA.Ord, color="Site", shape="PrePostRO")
+BA.Ordu + scale_colour_manual(values = cols) + scale_fill_manual(values = cols) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black"))
+```
+
+
+There appears to be a general trend of samples clustering before RO treatment, though also more strongly before microfiltration (MF). If we look at the actual taxa found, we might see a more clear trend.
+```{r, fig.height=6, fig.width=10}
+gpt <- prune_taxa(names(sort(taxa_sums(Experimental.BA.N),TRUE)[1:50]), Water.BA.DNA.N)
+plot_heatmap(gpt, taxa.label = "Genus", sample.label="SiteTypeSample")
+```
+By this, a large number of the abundant zOTUs are removed by microfiltration, or are reduced in abundance. Similarly, a separate set of zOTUs are found after microfiltration. 
+
+
+```{r, fig.height=7, fig.width=9}
+BA.Water.Heat<- amp_heatmap(data = Water.BA.N,
+            tax.aggregate = "Genus",
+            tax.add = "Class",
+            group = c("SiteTypeSample"),
+            tax.show = 25,
+            tax.empty = "remove",
+            plot.numbers = F,
+            plot.breaks = c(0.1,1.0,10.0,50.0),
+            max.abundance = 50,
+            min.abundance = .1,
+            order.x = c("Q1.October.DNA","Q1.July.DNA","Q1.July.RNA","MFF.July.DNA","MFF.July.RNA","MFE.October.DNA","MFE.July.DNA","MFE.July.RNA","ROF.October.DNA","ROP.July.RNA","UVF.October.DNA","UVP.October.DNA","UVP.July.DNA","UVP.July.RNA","FPW.October.DNA"),
+            scale.seq = 100) + 
+    scale_x_discrete(labels = c("Q1.October\nDNA","Q1.July\nDNA","Q1.July\nRNA","MFF.July\nDNA","MFF.July\nRNA","MFE.October\nDNA","MFE.July\nDNA","MFE.July\nRNA","ROF.October\nDNA","ROP.July\nRNA","UVF.October\nDNA","UVP.October\nDNA","UVP.July\nDNA","UVP.July\nRNA","FPW.October\nDNA")) +
+    theme(axis.text.x = element_text(size =6, color = "black", hjust = 0.4, angle = 0)) + theme(axis.text.y = element_text(size =6, color = "black", angle = 0))
+
+
+E.Water.Heat<- amp_heatmap(data = Water.E.N,
+            tax.aggregate = "Genus",
+            tax.add = "Class",
+            group = c("SiteTypeSample"),
+            tax.show = 25,
+            tax.empty = "remove",
+            plot.numbers = F,
+            plot.breaks = c(0.1,1.0,10.0,50.0),
+            max.abundance = 50,
+            min.abundance = .1,
+            order.x = c("Q1.October.DNA","Q1.July.DNA","Q1.July.RNA","MFF.July.DNA","MFF.July.RNA","MFE.July.DNA","MFE.July.RNA","ROF.October.DNA", "ROP.July.RNA","UVP.July.DNA","UVP.July.RNA"),
+            scale.seq = 100) + 
+    scale_x_discrete(labels = c("Q1.October\nDNA","Q1.July\nDNA","Q1.July\nRNA","MFF.July\nDNA","MFF.July\nRNA","MFE.July\nDNA","MFE.July\nRNA","ROF.October\nDNA", "ROP.July\nRNA","UVP.July\nDNA","UVP.July\nRNA")) +
+    theme(axis.text.x = element_text(size =6, color = "black", hjust = 0.4, angle = 0)) + theme(axis.text.y = element_text(size =6, color = "black", angle = 0))
+
+plot_grid(BA.Water.Heat,E.Water.Heat, labels = c("A", "B"), rel_widths = c(1,1),nrow = 2, align = "v")
+```
+```{r}
+BA.Biofilm.Heat<- amp_heatmap(data = Biofilm.BA.N,
+            tax.aggregate = "Genus",
+            tax.add = "Class",
+            group = c("SiteType"),
+            tax.show = 25,
+            tax.empty = "remove",
+            plot.numbers = F,
+            plot.breaks = c(0.1,1.0,10.0,50.0),
+            max.abundance = 50,
+            min.abundance = .1,
+            order.x = c("MF.RNA","MF.DNA","RO.DNA","RO.RNA"),
+            scale.seq = 100) + 
+    scale_x_discrete(labels = c("MF\nRNA","MF\nDNA","RO\nDNA","RO\nRNA")) +
+    theme(axis.text.x = element_text(size =6, color = "black", hjust = 0.4, angle = 0)) + theme(axis.text.y = element_text(size =6, color = "black", angle = 0))
+
+
+E.Biofilm.Heat<- amp_heatmap(data = Biofilm.E.N,
+            tax.aggregate = "Genus",
+            tax.add = "Class",
+            group = c("SiteType"),
+            tax.show = 25,
+            tax.empty = "remove",
+            plot.numbers = F,
+            plot.breaks = c(0.1,1.0,10.0,50.0),
+            max.abundance = 50,
+            min.abundance = .1,
+            order.x = c("MF.RNA","MF.DNA","RO.DNA","RO.RNA"),
+            scale.seq = 100) + 
+    scale_x_discrete(labels = c("MF\nRNA","MF\nDNA","RO\nDNA","RO\nRNA")) +
+    theme(axis.text.x = element_text(size =6, color = "black", hjust = 0.4, angle = 0)) + theme(axis.text.y = element_text(size =6, color = "black", angle = 0))
+
+plot_grid(BA.Biofilm.Heat,E.Biofilm.Heat, labels = c("A", "B"), rel_widths = c(1,1),nrow = 2, align = "v")
+```
+There are definitely differences in both the bacteria and Eukaryotes, though the effect is more pronounced in the bacteria. 
+
+```{r}
+Experimental.BA.Rare.Data = as(sample_data(Experimental.BA.Rare), "data.frame")
+Experimental.BA.d = phyloseq::distance(Experimental.BA.Rare, "wunifrac")
+adonis(Experimental.BA.d ~ Site, permutations = 999, Experimental.BA.Rare.Data)
+```
+
+```{r}
+Water.BA.Rare.Data = as(sample_data(Water.BA.Rare), "data.frame")
+Water.BA.d = phyloseq::distance(Water.BA.Rare, "wunifrac")
+adonis(Water.BA.d ~ Site, permutations = 999, Water.BA.Rare.Data)
+```
+```{r}
+Water.E.Rare.Data = as(sample_data(Water.E.Rare), "data.frame")
+Water.E.d = phyloseq::distance(Water.E.Rare, "wunifrac")
+adonis(Water.E.d ~ Site, permutations = 999, Water.E.Rare.Data)
+```
+
+Supplemental Data
+==========================
+
+First up- I want to show my controls.
+```{r}
+Controls.BA <- subset_samples(Overall.BA, Site %in% c("ExtractionBlank", "FilterBlank", "MockCommunity" , "NegativeControl"))
+Controls.E <- subset_samples(Overall.E, Site %in% c("ExtractionBlank", "FilterBlank", "MockCommunity" , "NegativeControl"))
+Controls.BA.N <- transform_sample_counts(Controls.BA, function(x) x / sum(x) * 100)
+Controls.E.N <- transform_sample_counts(Controls.E, function(x) x / sum(x) * 100)
+```
+
+```{r, fig.height=7, fig.width=9}
+BA.Control.Heat<- amp_heatmap(data = Controls.BA.N,
+            tax.aggregate = "Genus",
+            tax.add = "Class",
+            group = c("SiteTypeSample"),
+            tax.show = 25,
+            tax.empty = "remove",
+            plot.numbers = F,
+            plot.breaks = c(0.1,1.0,10.0,50.0),
+            max.abundance = 50,
+            min.abundance = .1,
+            order.x = c("MockCommunity.October.DNA","MockCommunity.July.DNA","ExtractionBlank.October.DNA","ExtractionBlank.July.DNA","FilterBlank.October.DNA","FilterBlank.July.DNA","NegativeControl.October.DNA","NegativeControl.July.DNA"),
+            scale.seq = 100) + 
+    scale_x_discrete(labels = c("Mock\nCommunity 1","Mock\nCommunity 2","Extraction\nBlank 1","Extraction\nBlank 2","Filter\nBlank 1","Filter\nBlank 2","Negative\nControl 1","Negative\nControl 2")) +
+    theme(axis.text.x = element_text(size =6, color = "black", hjust = 0.4, angle = 0)) + theme(axis.text.y = element_text(size =6, color = "black", angle = 0))
+
+
+E.Control.Heat<- amp_heatmap(data = Controls.E.N,
+            tax.aggregate = "Genus",
+            tax.add = "Class",
+            group = c("SiteTypeSample"),
+            tax.show = 25,
+            tax.empty = "remove",
+            plot.numbers = F,
+            plot.breaks = c(0.1,1.0,10.0,50.0),
+            max.abundance = 50,
+            min.abundance = .1,
+            order.x = c("MockCommunity.October.DNA","MockCommunity.July.DNA","ExtractionBlank.October.DNA","ExtractionBlank.July.DNA","FilterBlank.October.DNA","FilterBlank.July.DNA","NegativeControl.October.DNA","NegativeControl.July.DNA"),
+            scale.seq = 100) + 
+    scale_x_discrete(labels = c("Mock\nCommunity 1","Mock\nCommunity 2","Extraction\nBlank 1","Extraction\nBlank 2","Filter\nBlank 1","Filter\nBlank 2","Negative\nControl 1","Negative\nControl 2")) +
+    theme(axis.text.x = element_text(size =6, color = "black", hjust = 0.4, angle = 0)) + theme(axis.text.y = element_text(size =6, color = "black", angle = 0))
+
+plot_grid(BA.Control.Heat,E.Control.Heat, labels = c("A", "B"), rel_widths = c(1,1),nrow = 2, align = "v")
+```
+What we see above is that a) the mock community used was near identical between two sequencing runs, and b) negative controls were dissimilar between runs, and contained some known "contaminome" type sequences, such as Halomonas, Achromobacter,  etc. Thankfully, the most/more abundant taxa in my actual samples do not match the distribution of my controls. 
+
+Next, I'd like to show my no RT controls next to their respective RNA samples. 
+```{r}
+NoRT.BA <- subset_samples(Overall.BA, SiteType %in% c("NoRT.RNA", "Q1.RNA", "MFF.RNA" , "MFE.RNA", "ROP.RNA", "UVP.RNA", "RO.RNA", "MF.RNA"))
+NoRT.E <- subset_samples(Overall.E, SiteType %in% c("NoRT.RNA", "Q1.RNA", "MFF.RNA" , "MFE.RNA", "ROP.RNA", "UVP.RNA", "RO.RNA", "MF.RNA"))
+NoRT.BA.N <- transform_sample_counts(NoRT.BA, function(x) x / sum(x) * 100)
+NoRT.E.N <- transform_sample_counts(NoRT.E, function(x) x / sum(x) * 100)
+```
+
+```{r, fig.height=7, fig.width=15}
+BA.NoRT.Heat<- amp_heatmap(data = NoRT.BA.N,
+            tax.aggregate = "Genus",
+            tax.add = "Class",
+            tax.show = 25,
+            tax.empty = "remove",
+            plot.numbers = F,
+            plot.breaks = c(0.1,1.0,10.0,50.0),
+            max.abundance = 50,
+            min.abundance = .1,
+            order.x = c("Q1.NoRT.RNA","Q1.4.RNA","Q1.3.RNA","Q1.2.RNA","Q1.1.RNA","MFF.NoRT.RNA","MFF.4.RNA","MFF.3.RNA","MFF.2.RNA","MFF.1.RNA","MFE.NoRT.RNA","MFE.4.RNA","MFE.3.RNA","MFE.2.RNA","MFE.1.RNA","ROP.NoRT.RNA","ROP.4.RNA","ROP.3.RNA","ROP.2.RNA","ROP.1.RNA","UVP.NoRT.RNA","UVP.4.RNA","UVP.3.RNA","UVP.2.RNA","UVP.1.RNA","RO.Biofilm.Sept2017.5.RNA","RO.Biofilm.Sept2017.4.RNA","RO.Biofilm.Sept2017.3.RNA","RO.Biofilm.Sept2017.2.RNA","RO.Biofilm.Sept2017.1.RNA","RO.Biofilm.Sept2017.1.NoRT.RNA","RO.Biofilm.Alt.4.RNA","RO.Biofilm.Alt.3.RNA","RO.Biofilm.Alt.2.RNA","RO.Biofilm.Alt.1.RNA","RO.Biofilm.Alt.1.NoRT.RNA","MF.Biofilm.4.RNA","MF.Biofilm.4.DNA","MF.Biofilm.3.RNA","MF.Biofilm.3.DNA","MF.Biofilm.2.RNA","MF.Biofilm.2.DNA","MF.Biofilm.1.RNA","MF.Biofilm.1.NoRT.RNA","MF.Biofilm.1.DNA","Filter.Blank.NoRT.RNA","Extraction.Blank.NoRT.RNA","NegC.NoRT.RNA"),
+            scale.seq = 100) + 
+    scale_x_discrete(labels = c("Q1\nNoRT","Q1 4","Q1 3","Q1 2","Q1 1","MFF\nNoRT","MFF 4","MFF 3","MFF 2","MFF 1","MFE\nNoRT","MFE 4","MFE 3","MFE 2","MFE 1","ROP\nNoRT","ROP 4","ROP 3","ROP 2","ROP 1","UVP\nNoRT","UVP 4","UVP 3","UVP 2","UVP 1","RO\nBiofilm\nSept2017 5","RO\nBiofilm\nSept2017 4","RO\nBiofilm\nSept2017 3","RO\nBiofilm\nSept2017 2","RO\nBiofilm\nSept2017 1","RO\nBiofilm\nSept2017 1\nNoRT","RO\nBiofilm\nAlt 4","RO\nBiofilm\nAlt 3","RO\nBiofilm\nAlt 2","RO\nBiofilm\nAlt 1","RO\nBiofilm\nAlt 1\nNoRT","MF\nBiofilm 4","MF\nBiofilm 4\nDNA","MF\nBiofilm 3","MF\nBiofilm 3\nDNA","MF\nBiofilm 2","MF\nBiofilm 2\nDNA","MF\nBiofilm 1","MF\nBiofilm 1\nNoRT","MF\nBiofilm 1\nDNA","Filter\nBlank\nNoRT","Extraction\nBlank\nNoRT","NegC\nNoRT")) +
+    theme(axis.text.x = element_text(size =6, color = "black", hjust = 0.4, angle = 0)) + theme(axis.text.y = element_text(size =6, color = "black", angle = 0))
+
+
+E.NoRT.Heat<- amp_heatmap(data = NoRT.E.N,
+            tax.aggregate = "Genus",
+            tax.add = "Class",
+            tax.show = 25,
+            tax.empty = "remove",
+            plot.numbers = F,
+            plot.breaks = c(0.1,1.0,10.0,50.0),
+            max.abundance = 50,
+            min.abundance = .1,
+            order.x = c("Q1.NoRT.RNA","Q1.4.RNA","Q1.3.RNA","Q1.2.RNA","Q1.1.RNA","MFF.NoRT.RNA","MFF.4.RNA","MFF.3.RNA","MFF.2.RNA","MFF.1.RNA","MFE.NoRT.RNA","MFE.4.RNA","MFE.3.RNA","MFE.2.RNA","MFE.1.RNA","ROP.NoRT.RNA","ROP.4.RNA","ROP.3.RNA","ROP.2.RNA","ROP.1.RNA","UVP.NoRT.RNA","UVP.4.RNA","UVP.3.RNA","UVP.2.RNA","UVP.1.RNA","RO.Biofilm.Sept2017.5.RNA","RO.Biofilm.Sept2017.4.RNA","RO.Biofilm.Sept2017.3.RNA","RO.Biofilm.Sept2017.2.RNA","RO.Biofilm.Sept2017.1.RNA","RO.Biofilm.Sept2017.1.NoRT.RNA","RO.Biofilm.Alt.4.RNA","RO.Biofilm.Alt.3.RNA","RO.Biofilm.Alt.2.RNA","RO.Biofilm.Alt.1.RNA","RO.Biofilm.Alt.1.NoRT.RNA","MF.Biofilm.4.RNA","MF.Biofilm.4.DNA","MF.Biofilm.3.RNA","MF.Biofilm.3.DNA","MF.Biofilm.2.RNA","MF.Biofilm.2.DNA","MF.Biofilm.1.RNA","MF.Biofilm.1.NoRT.RNA","MF.Biofilm.1.DNA","Filter.Blank.NoRT.RNA","Extraction.Blank.NoRT.RNA","NegC.NoRT.RNA"),
+            scale.seq = 100) + 
+    scale_x_discrete(labels = c("Q1\nNoRT","Q1 4","Q1 3","Q1 2","Q1 1","MFF\nNoRT","MFF 4","MFF 3","MFF 2","MFF 1","MFE\nNoRT","MFE 4","MFE 3","MFE 2","MFE 1","ROP\nNoRT","ROP 4","ROP 3","ROP 2","ROP 1","UVP\nNoRT","UVP 4","UVP 3","UVP 2","UVP 1","RO\nBiofilm\nSept2017 5","RO\nBiofilm\nSept2017 4","RO\nBiofilm\nSept2017 3","RO\nBiofilm\nSept2017 2","RO\nBiofilm\nSept2017 1","RO\nBiofilm\nSept2017 1\nNoRT","RO\nBiofilm\nAlt 4","RO\nBiofilm\nAlt 3","RO\nBiofilm\nAlt 2","RO\nBiofilm\nAlt 1","RO\nBiofilm\nAlt 1\nNoRT","MF\nBiofilm 4","MF\nBiofilm 4\nDNA","MF\nBiofilm 3","MF\nBiofilm 3\nDNA","MF\nBiofilm 2","MF\nBiofilm 2\nDNA","MF\nBiofilm 1","MF\nBiofilm 1\nNoRT","MF\nBiofilm 1\nDNA","Filter\nBlank\nNoRT","Extraction\nBlank\nNoRT","NegC\nNoRT")) +
+    theme(axis.text.x = element_text(size =6, color = "black", hjust = 0.4, angle = 0)) + theme(axis.text.y = element_text(size =6, color = "black", angle = 0))
+
+plot_grid(BA.NoRT.Heat,E.NoRT.Heat, labels = c("A", "B"), rel_widths = c(1,1),nrow = 2, align = "v")
+```
+
+So, our no RT controls look quite a bit more like the DNA samples in figure 4a/b than the RNA samples they are compared to. Always a good thing.
+

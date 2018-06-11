@@ -1,0 +1,104 @@
+Num samples: 89
+Num observations: 734
+Total count: 285,832
+Table density (fraction of non-zero values): 0.159
+
+Counts/sample summary:
+ Min: 108.000
+ Max: 144,377.000
+ Median: 1,022.000
+ Mean: 3,211.596
+ Std. dev.: 15,168.116
+ Sample Metadata Categories: Temperature; SequencingRun; Na; ReversePrimer; pH; NO2; NO3; Description; PrePostRO; SampleMonth; SiteType; PO43; SampleYear; SO42; Fe; Br; Mg; B; F; Sr; K; BarcodeSequence; SampleType; P; S; LinkerPrimerSequence; DNAorRNA; Control; Cl; Si; Ca; Site; Cr; SiteTypeSample
+ Observation Metadata Categories: taxonomy
+
+Counts/sample detail:
+MFE.1.DNA: 108.000
+MFE.1.RNA: 112.000
+ROP.CENT: 112.000
+Extraction.Blank.3.DNA: 113.000
+FILTER.BLANK.D: 114.000
+MFE.NoRT.RNA: 118.000
+RO.Biofilm.Alt.3.RNA: 130.000
+MFE.4.DNA: 132.000
+ROP.A: 159.000
+MF.Biofilm.4.DNA: 165.000
+Filter.Blank.NoRT.RNA: 189.000
+MFE.2.RNA: 191.000
+RO.Biofilm.Alt.3.DNA: 212.000
+RO.Biofilm.Sept2017.2.DNA: 217.000
+Filter.Blank.2.RNA: 238.000
+RO.Biofilm.Sept2017.1.NoRT.RNA: 239.000
+RO.Biofilm.Sept2017.4.DNA: 244.000
+RO.Biofilm.Sept2017.5.DNA: 256.000
+Filter.Blank.2.DNA: 260.000
+Filter.Blank.3.DNA: 274.000
+MFF.NoRT.RNA: 289.000
+ROP.C: 311.000
+ROP.B: 383.000
+RO.Biofilm.Sept2017.3.DNA: 455.000
+MF.Biofilm.2.RNA: 456.000
+Filter.Blank.1.RNA: 523.000
+ZYMO.CONTROL.2: 555.000
+FPW.CENT: 621.000
+ZYMO.CONTROL.1: 644.000
+UVP.1.DNA: 649.000
+UVP.1.RNA: 653.000
+UVP.4.DNA: 662.000
+RO.Biofilm.Sept2017.1.DNA: 665.000
+ROP.1.RNA: 678.000
+MF.Biofilm.3.RNA: 701.000
+ROP.4.RNA: 714.000
+MFE.4.RNA: 726.000
+MF.Biofilm.1.DNA: 743.000
+Extraction.Blank.3.RNA: 833.000
+Extraction.Blank.2.DNA: 879.000
+Filter.Blank.1.DNA: 884.000
+MF.Biofilm.1.RNA: 930.000
+Extraction.Blank.1.RNA: 955.000
+Q1.1.DNA: 977.000
+Q1.4.DNA: 1,022.000
+ROP.3.RNA: 1,061.000
+Extraction.Blank.1.DNA: 1,068.000
+UVP.2.DNA: 1,089.000
+Extraction.Blank.2.RNA: 1,150.000
+MF.Biofilm.3.DNA: 1,261.000
+MFF.2.DNA: 1,366.000
+ZYMO.CONTROL.3: 1,389.000
+MF.Biofilm.2.DNA: 1,519.000
+UVP.2.RNA: 1,556.000
+Q1.3.RNA: 1,769.000
+UVP.3.RNA: 1,803.000
+RO.Biofilm.Alt.4.RNA: 1,810.000
+Q1.2016.2.DNA: 1,861.000
+Q1.1.RNA: 1,868.000
+Q1.3.DNA: 1,946.000
+RO.Biofilm.Sept2017.3.RNA: 2,099.000
+RO.Biofilm.Sept2017.5.RNA: 2,185.000
+MFF.4.DNA: 2,207.000
+Q1.2016.1.DNA: 2,262.000
+RO.Biofilm.Sept2017.1.RNA: 2,349.000
+MFF.1.DNA: 2,421.000
+Q1.C: 2,439.000
+ZYMO.STD.2.DNA: 2,471.000
+Q1.2016.3.DNA: 2,482.000
+PosC.NoRT.RNA: 2,498.000
+ZYMO.STD.1.DNA: 2,500.000
+Q1.2.DNA: 2,548.000
+Q1.B: 2,653.000
+MFF.3.DNA: 2,656.000
+ZYMO.STD.3.DNA: 2,691.000
+RO.Biofilm.Sept2017.4.RNA: 2,743.000
+RO.Biofilm.Sept2017.2.RNA: 2,890.000
+Q1.NoRT.RNA: 3,189.000
+Filter.Blank.3.RNA: 3,189.000
+Q1.A: 3,325.000
+MFF.1.RNA: 3,536.000
+MFF.2.RNA: 3,972.000
+MFF.3.RNA: 4,063.000
+Q1.4.RNA: 4,251.000
+ROP.2.RNA: 4,834.000
+UVP.4.RNA: 4,926.000
+Q1.2.RNA: 6,507.000
+Q1.CENT: 14,562.000
+MFF.4.RNA: 144,377.000
