@@ -3,12 +3,7 @@ title: "Characterization of the Microbiome of a State-of-the-Art Water Reuse Sys
 output: html_notebook
 ---
 
-This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
-
-
-Before figure generation and analyses in R, I process my data in QIIME and deblur- the below is exicsed from a BASH script used to run the initial processing outside of R. 
-
-Note that for all QIIME/UPARSE related scripts I'm operating in the BASH environment. Depending on your computer you may have problems running more memory intensive steps, e.g. taxonomy assignment and sequence alignment. Prior to R for visualization and analysis, I used an M4.4xlarge instance on Amazon EC2. 
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
 
 You will need the initial mapping files for QC, as well as the analysis mapping (Both included in supplementary data on the github repo) file to recreate this analysis.
 
@@ -18,13 +13,18 @@ Software used:
 - PEAR
 - All dependencies for the above software
 
-I run QIIME and Deblur within separate virtual environments, so you'll see me activate and deactivate them within this script. The first several blocks of code were carried out using an t2.medium instance type. For storage, I recommend 80-100 GB.
-
 ```{bash}
 source activate qiime1
 ```
+Once you've downloaded data from the SRA- you need to place it into the R Markdown folder, downloaded from GitHub/Zenodo. Make a directory "seq" within "R Markdown", and place the raw sequencing files inside as shown below. Sequencing file names may have changed in the SRA from shown in this example. 
 
-
+Base_Dir
+---> "R Markdown"
+  ---> "seq"
+    ---> "Run1"
+    ---> "Run2"
+---> "QIIME Files"
+---> "QIIME Summaries"
 By the estimated insert sizes for 16S and 18S, we're going to have to process our Bacterial/Archaeal and Eukaryotic sequences separately- 18S reads will not join (≈600-700 bp, so no overlap). First, we'll join reads, and then use the unpaired reads into a separate USEARCH pipeline. 
 
 ```{bash}
@@ -244,7 +244,7 @@ Next, I'm going to define a color varible for the plots.
 cols <- c("Q1" = "#000000", "MFF" = "#404040", "MFE" = "#666666", "ROF" = "#8c8c8c", "ROP" = "#a6a6a6", "UVF" = "#bfbfbf", "UVP" = "#d9d9d9", "FPW" = "orange", "RO" = "blue", "MF" = "red")
 ```
 
-
+First off, let's generate some PCoA ordinations that will be figures in the manuscript. 
 ```{r}
 E.Ord <- ordinate(Water.DNA.E.Rare, method = "PCoA", distance = "unifrac")
 E.Ordu<- plot_ordination(Water.DNA.E.Rare, E.Ord, color="Site", shape="PrePostRO")
@@ -260,12 +260,8 @@ BA.Ordu + scale_colour_manual(values = cols) + scale_fill_manual(values = cols) 
 
 
 There appears to be a general trend of samples clustering before RO treatment, though also more strongly before microfiltration (MF). If we look at the actual taxa found, we might see a more clear trend.
-```{r, fig.height=6, fig.width=10}
-gpt <- prune_taxa(names(sort(taxa_sums(Experimental.BA.N),TRUE)[1:50]), Water.BA.DNA.N)
-plot_heatmap(gpt, taxa.label = "Genus", sample.label="SiteTypeSample")
-```
-By this, a large number of the abundant zOTUs are removed by microfiltration, or are reduced in abundance. Similarly, a separate set of zOTUs are found after microfiltration. 
 
+Next, we can generate heatmaps as shown in the manuscript. 
 
 ```{r, fig.height=7, fig.width=9}
 BA.Water.Heat<- amp_heatmap(data = Water.BA.N,
@@ -335,7 +331,7 @@ E.Biofilm.Heat<- amp_heatmap(data = Biofilm.E.N,
 
 plot_grid(BA.Biofilm.Heat,E.Biofilm.Heat, labels = c("A", "B"), rel_widths = c(1,1),nrow = 2, align = "v")
 ```
-There are definitely differences in both the bacteria and Eukaryotes, though the effect is more pronounced in the bacteria. 
+There are definitely differences in both the bacteria and Eukaryotes, though the effect is more pronounced in the bacteria. Now, to run statistical tests to confirm this observation.
 
 ```{r}
 Experimental.BA.Rare.Data = as(sample_data(Experimental.BA.Rare), "data.frame")
