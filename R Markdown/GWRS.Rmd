@@ -173,13 +173,13 @@ library(ampvis)
 library(cowplot)
 ```
 
-Import BIOM files and convert to a phyloseq object. Also, I'll need to rename the columns to match what Phyloseq/Ampvis expect and make my life a little simpler. This will be a large section as I import each file. 
+Import BIOM files and convert to a phyloseq object. Also, I'll need to rename the columns to match what Phyloseq/Ampvis expect and make my life a little simpler. This will be a large section as I import each file. The "Analysis combined" phyloseq object wasn't used in the manuscript, but might be of interest if you want to see the bacteria, archaea, and eukaryotes in a single figure. 
 ```{r, warning=FALSE}
-Overall.BA <- import_biom("AnalysisBacArc.clean.biom", "BacArc.tre", "BacArc.seqs.fna", parseFunction=parse_taxonomy_default)
+Overall.BA <- import_biom("../QIIME_Files/AnalysisBacArc.clean.biom", "../QIIME_Files/BacArc.tre", "../QIIME_Files/BacArc.seqs.fna", parseFunction=parse_taxonomy_default)
 
-Overall.E <- import_biom("Analysis_Euk.clean.biom", "Euk.tre", "Euk.seqs.fna", parseFunction=parse_taxonomy_default)
+Overall.E <- import_biom("../QIIME_Files/Analysis_Euk.clean.biom", "../QIIME_Files/Euk.tre", "../QIIME_Files/Euk.seqs.fna", parseFunction=parse_taxonomy_default)
 
-Overall.All <- import_biom("Analysis_combined.biom", "All.tre", "All.seqs.fna", parseFunction=parse_taxonomy_default)
+Overall.All <- import_biom("../QIIME_Files/Analysis_combined.biom", "../QIIME_Files/All.tre", "../QIIME_Files/All.seqs.fna", parseFunction=parse_taxonomy_default)
 ```
 
 ```{r, warning=FALSE}
@@ -188,7 +188,7 @@ colnames(tax_table(Overall.E)) = c("Kingdom", "Phylum", "Class", "Order", "Famil
 colnames(tax_table(Overall.All)) = c("Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species")
 ```
 
-Now I'm going to subset each table to make individual heatmaps for SE and SW that I can place side by side in the manuscript. 
+Now I'm going to subset each table to make individual heatmaps for water and biofilm samples that I can place side by side in the manuscript. 
 ```{r}
 Overall.BA.N <- transform_sample_counts(Overall.BA, function(x) x / sum(x) * 100)
 Overall.E.N <- transform_sample_counts(Overall.E, function(x) x / sum(x) * 100)
@@ -220,9 +220,9 @@ Biofilm.E.N <- transform_sample_counts(Biofilm.E, function(x) x / sum(x) * 100)
 ```
 
 
-Now, let's address our first question- are the locations different? 
+Now, let's address our first question- are the sample sites/control points different? 
 
-For the next section, we want to confirm that there are visible differences between locations by ordination, and then test the hypothesis that there is a difference in community structure between locations. To do this, we're going to rarefy our phyloseq objects before proceeding. 
+For the next section, we want to confirm that there are visible differences between sample sites by ordination, and then test the hypothesis that there is a difference in community structure between sample sites. To do this, we're going to rarefy our phyloseq objects before proceeding. 
 
 ```{r}
 Water.BA.Rare <- rarefy_even_depth(Water.BA, sample.size = 5000, rngseed = 712)
@@ -238,24 +238,24 @@ Water.DNA.BA.Rare <- rarefy_even_depth(Water.DNA.BA, sample.size = 1000, rngseed
 Water.DNA.E.Rare <- rarefy_even_depth(Water.DNA.E, sample.size = 1000, rngseed = 712)
 ```
 
-Next, I'm going to define a color varible for the plots.
+Next, I'm going to define a color varible for the plots. The colors were chosen to be colorblind friendly using http://colorbrewer2.org/.
 
 ```{r}
-cols <- c("Q1" = "#000000", "MFF" = "#404040", "MFE" = "#666666", "ROF" = "#8c8c8c", "ROP" = "#a6a6a6", "UVF" = "#bfbfbf", "UVP" = "#d9d9d9", "FPW" = "orange", "RO" = "blue", "MF" = "red")
+cols <- c("Q1" = "#762a83", "MFF" = "#9970ab", "MFE" = "#c2a5cf", "ROF" = "#e7d4e8", "ROP" = "#d9f0d3", "UVF" = "#a6dba0", "UVP" = "#5aae61", "FPW" = "#1b7837", "RO" = "#40004b", "MF" = "#00441b")
 ```
 
 First off, let's generate some PCoA ordinations that will be figures in the manuscript. 
 ```{r}
 E.Ord <- ordinate(Water.DNA.E.Rare, method = "PCoA", distance = "unifrac")
-E.Ordu<- plot_ordination(Water.DNA.E.Rare, E.Ord, color="Site", shape="PrePostRO")
-E.Ordu + scale_colour_manual(values = cols) + scale_fill_manual(values = cols) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black"))
+E.Ordu<- plot_ordination(Water.DNA.E.Rare, E.Ord, color="Site")
+E.Ordu + geom_point(size=2.5) + scale_colour_manual(values = cols) + scale_fill_manual(values = cols) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black"))
 ```
 
 
 ```{r}
 BA.Ord <- ordinate(Water.DNA.BA.Rare, method = "PCoA", distance = "unifrac")
-BA.Ordu<- plot_ordination(Water.DNA.BA.Rare, BA.Ord, color="Site", shape="PrePostRO")
-BA.Ordu + scale_colour_manual(values = cols) + scale_fill_manual(values = cols) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black"))
+BA.Ordu<- plot_ordination(Water.DNA.BA.Rare, BA.Ord, color="Site")
+BA.Ordu + geom_point(size=2.5) + scale_colour_manual(values = cols) + scale_fill_manual(values = cols) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(), axis.line = element_line(colour = "black"))
 ```
 
 
@@ -263,7 +263,7 @@ There appears to be a general trend of samples clustering before RO treatment, t
 
 Next, we can generate heatmaps as shown in the manuscript. 
 
-```{r, fig.height=7, fig.width=9}
+```{r, fig.height=9, fig.width=9}
 BA.Water.Heat<- amp_heatmap(data = Water.BA.N,
             tax.aggregate = "Genus",
             tax.add = "Class",
@@ -274,9 +274,9 @@ BA.Water.Heat<- amp_heatmap(data = Water.BA.N,
             plot.breaks = c(0.1,1.0,10.0,50.0),
             max.abundance = 50,
             min.abundance = .1,
-            order.x = c("Q1.October.DNA","Q1.July.DNA","Q1.July.RNA","MFF.July.DNA","MFF.July.RNA","MFE.October.DNA","MFE.July.DNA","MFE.July.RNA","ROF.October.DNA","ROP.July.RNA","UVF.October.DNA","UVP.October.DNA","UVP.July.DNA","UVP.July.RNA","FPW.October.DNA"),
+            order.x = c("Q1.October.DNA","Q1.July.DNA","Q1.July.RNA","MFF.July.DNA","MFF.July.RNA","MFE.October.DNA","MFE.July.DNA","MFE.July.RNA","ROF.October.DNA","ROP.October.DNA","ROP.July.RNA","UVF.October.DNA","UVP.October.DNA","UVP.July.DNA","UVP.July.RNA","FPW.October.DNA"),
             scale.seq = 100) + 
-    scale_x_discrete(labels = c("Q1.October\nDNA","Q1.July\nDNA","Q1.July\nRNA","MFF.July\nDNA","MFF.July\nRNA","MFE.October\nDNA","MFE.July\nDNA","MFE.July\nRNA","ROF.October\nDNA","ROP.July\nRNA","UVF.October\nDNA","UVP.October\nDNA","UVP.July\nDNA","UVP.July\nRNA","FPW.October\nDNA")) +
+    scale_x_discrete(labels = c("Q1.October\nDNA","Q1.July\nDNA","Q1.July\nRNA","MFF.July\nDNA","MFF.July\nRNA","MFE.October\nDNA","MFE.July\nDNA","MFE.July\nRNA","ROF.October\nDNA","ROP.October\nDNA","ROP.July\nRNA","UVF.October\nDNA","UVP.October\nDNA","UVP.July\nDNA","UVP.July\nRNA","FPW.October\nDNA")) +
     theme(axis.text.x = element_text(size =6, color = "black", hjust = 0.4, angle = 0)) + theme(axis.text.y = element_text(size =6, color = "black", angle = 0))
 
 
@@ -290,7 +290,7 @@ E.Water.Heat<- amp_heatmap(data = Water.E.N,
             plot.breaks = c(0.1,1.0,10.0,50.0),
             max.abundance = 50,
             min.abundance = .1,
-            order.x = c("Q1.October.DNA","Q1.July.DNA","Q1.July.RNA","MFF.July.DNA","MFF.July.RNA","MFE.July.DNA","MFE.July.RNA","ROF.October.DNA", "ROP.July.RNA","UVP.July.DNA","UVP.July.RNA"),
+            order.x = c("Q1.October.DNA","Q1.July.DNA","Q1.July.RNA","MFF.July.DNA","MFF.July.RNA","MFE.July.DNA","MFE.July.RNA","ROP.October.DNA", "ROP.July.RNA","UVP.July.DNA","UVP.July.RNA"),
             scale.seq = 100) + 
     scale_x_discrete(labels = c("Q1.October\nDNA","Q1.July\nDNA","Q1.July\nRNA","MFF.July\nDNA","MFF.July\nRNA","MFE.July\nDNA","MFE.July\nRNA","ROF.October\nDNA", "ROP.July\nRNA","UVP.July\nDNA","UVP.July\nRNA")) +
     theme(axis.text.x = element_text(size =6, color = "black", hjust = 0.4, angle = 0)) + theme(axis.text.y = element_text(size =6, color = "black", angle = 0))
@@ -331,14 +331,14 @@ E.Biofilm.Heat<- amp_heatmap(data = Biofilm.E.N,
 
 plot_grid(BA.Biofilm.Heat,E.Biofilm.Heat, labels = c("A", "B"), rel_widths = c(1,1),nrow = 2, align = "v")
 ```
-There are definitely differences in both the bacteria and Eukaryotes, though the effect is more pronounced in the bacteria. Now, to run statistical tests to confirm this observation.
+There are definitely differences in both the bacteria and eukaryotes, though the effect is more pronounced in the bacteria. The heatmaps were exported as PDFs, and combined using Graphic to make the final figure. Now, to run statistical tests to confirm this observation.
 
 ```{r}
 Experimental.BA.Rare.Data = as(sample_data(Experimental.BA.Rare), "data.frame")
 Experimental.BA.d = phyloseq::distance(Experimental.BA.Rare, "wunifrac")
 adonis(Experimental.BA.d ~ Site, permutations = 999, Experimental.BA.Rare.Data)
 ```
-
+With all samples (including the biofilms), there is a significant difference between sample sites. What about just the water? 
 ```{r}
 Water.BA.Rare.Data = as(sample_data(Water.BA.Rare), "data.frame")
 Water.BA.d = phyloseq::distance(Water.BA.Rare, "wunifrac")
@@ -349,6 +349,8 @@ Water.E.Rare.Data = as(sample_data(Water.E.Rare), "data.frame")
 Water.E.d = phyloseq::distance(Water.E.Rare, "wunifrac")
 adonis(Water.E.d ~ Site, permutations = 999, Water.E.Rare.Data)
 ```
+
+Again, highly significant with a  strong effect size for the bacteria/archaea and a moderate effect size for the eukaryotes.
 
 Supplemental Data
 ==========================
